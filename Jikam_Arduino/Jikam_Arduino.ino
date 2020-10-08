@@ -1,4 +1,5 @@
 #include <SoftwareSerial.h>
+#include <RDM6300.h>
 #include "stuff.h"
 
 String inputMQTT = "";
@@ -11,6 +12,8 @@ Motores rodasDireitas = {5,6, 7};
 
 Motores elevadores = {8,9, 0};
 
+uint8_t Payload[6];
+RDM6300 RDM6300(Payload);
 SensorLinha sensoresFrente = {6,5,4,3,2};
 
 void setup() {
@@ -33,6 +36,7 @@ void setup() {
 
   pinMode(elevadores.sentidoHorario, OUTPUT);
   pinMode(elevadores.sentidoAntiHorario, OUTPUT);
+  RFID.begin(9600);
   
   // initialize serial for debugging
   Serial.begin(9600);
@@ -203,4 +207,22 @@ void girar(struct Motores motores, String sentido){
 void desligaMotores(struct Motores motores){
   digitalWrite(motores.sentidoHorario, LOW);
   digitalWrite(motores.sentidoAntiHorario, LOW);
+}
+
+
+void lerRfid(){
+  while (RFID.available() > 0)
+  {
+    uint8_t c = RFID.read();
+    if (RDM6300.decode(c))
+    {
+      Serial.print("ID TAG: ");
+      //Mostra os dados no serial monitor
+      for (int i = 0; i < 5; i++) {
+        Serial.print(Payload[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }
+  }
 }
