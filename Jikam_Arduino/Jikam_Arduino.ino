@@ -1,20 +1,17 @@
 #include <SoftwareSerial.h>
-#include <RDM6300.h>
 #include "stuff.h"
 
 String inputMQTT = "";
 String outputMQTT = "";
 
-int* instrucoes;
+int instrucoes[100];
 
-Motores rodasEsquerdas = {3,4, 2};
-Motores rodasDireitas = {5,6, 7};
+Motores rodasEsquerdas = {8,7, 6};
+Motores rodasDireitas = {10,9, 5};
 
-Motores elevadores = {8,9, 0};
+Motores elevadores = {2,3, 0};
 
-uint8_t Payload[6];
-RDM6300 RDM6300(Payload);
-SensorLinha sensoresFrente = {6,5,4,3,2};
+SensorLinha sensoresFrente = {28,29,30,31,32};
 
 void setup() {
   //sensores frontais
@@ -36,7 +33,6 @@ void setup() {
 
   pinMode(elevadores.sentidoHorario, OUTPUT);
   pinMode(elevadores.sentidoAntiHorario, OUTPUT);
-  RFID.begin(9600);
   
   // initialize serial for debugging
   Serial.begin(9600);
@@ -45,12 +41,11 @@ void setup() {
 }
 
 void loop() {
-  instrucoes = readData();
-
+  readData();
 
   if (instrucoes != NULL && instrucoes[0] != 0) {
 
-    executeActions(instrucoes);
+    executeActions();
     
   
   }else{
@@ -60,31 +55,29 @@ void loop() {
   }
 }
 
-int* readData() {
+void readData() {
   int i = 0;
-  int tempInstrucoes[100];
 
   if (Serial1.available()) {
     String temp = "";
     while (Serial1.available()) {
       char c = (char)Serial1.read();
-      if (c != '\n' && c != ',') {
-          tempInstrucoes[i] = String(c).toInt();
+      if (c != '\n' && c != ',' && c != ' ' && String(c) != "") {
+          instrucoes[i] = String(c).toInt();
+          i++;
       }
       Serial.println(c);
       delay(10);
     }
   }
-
-  return tempInstrucoes;
 }
 
-void executeActions(int acts[]) {
+void executeActions() {
   int i=0;
-  while(i < (sizeof(acts) / sizeof(int)) ){
-    if(acts[i] != 0){
-      Serial.print("InputMQTT Action - Sentido: " + String(acts[i]));
-      realizarTask(acts[i]);
+  while(i < (sizeof(instrucoes) / sizeof(int)) ){
+    if(instrucoes[i] != 0){
+      Serial.println("InputMQTT Action - Sentido: " + String(instrucoes[i]));
+      realizarTask(instrucoes[i]);
       alinhar();
     }
     i++;
@@ -92,28 +85,28 @@ void executeActions(int acts[]) {
 }
 
 void alinhar(){
-    while( ! digitalRead(sensoresFrente.meio) ){
-      if( digitalRead(sensoresFrente.meioEsquerda) ){
-          girar(rodasDireitas,SENTIDO_ANTI_HORARIO);
-          girar(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
-          delay(10);
-      }else if (digitalRead(sensoresFrente.meioDireita)){
-          girar(rodasDireitas, SENTIDO_HORARIO);
+    while( ! isLinhaSensor(sensoresFrente.meio) ){
+      if( isLinhaSensor(sensoresFrente.meioEsquerda) ){
+          girar(rodasDireitas, SENTIDO_ANTI_HORARIO);
           girar(rodasEsquerdas, SENTIDO_HORARIO);
-          delay(10);
+          delay(100);
+      }else if ( isLinhaSensor(sensoresFrente.meioDireita)){
+          girar(rodasDireitas, SENTIDO_HORARIO);
+          girar(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
+          delay(100);
       }
     }
 }
 
 void paraFrente(){
-  Serial.print("Frente START"); 
+  Serial.println("Frente START"); 
   do {
     alinhar();
-    girar(rodasDireitas, SENTIDO_ANTI_HORARIO); 
+    girar(rodasDireitas, SENTIDO_HORARIO); 
     girar(rodasEsquerdas, SENTIDO_HORARIO);
-    delay(10);
-    } while( digitalRead(sensoresFrente.meio) || digitalRead(sensoresFrente.esquerda) || digitalRead(sensoresFrente.direita) );
-   Serial.print("Frente END");
+    delay(100);
+    } while( isLinhaSensor(sensoresFrente.meio) && ! isLinhaSensor(sensoresFrente.esquerda) && ! isLinhaSensor(sensoresFrente.direita) );
+   Serial.println("Frente END");
 }
 
 void paraTras(){
@@ -190,6 +183,11 @@ void realizarTask(int task){
   
 }
 
+//quando nao refletir, esta na linha
+bool isLinhaSensor(int pinoSensor){
+  return digitalRead(pinoSensor) == 0;
+}
+
 
 void girar(struct Motores motores, String sentido){
   if(motores.potencia != 0)
@@ -207,22 +205,4 @@ void girar(struct Motores motores, String sentido){
 void desligaMotores(struct Motores motores){
   digitalWrite(motores.sentidoHorario, LOW);
   digitalWrite(motores.sentidoAntiHorario, LOW);
-}
-
-
-void lerRfid(){
-  while (RFID.available() > 0)
-  {
-    uint8_t c = RFID.read();
-    if (RDM6300.decode(c))
-    {
-      Serial.print("ID TAG: ");
-      //Mostra os dados no serial monitor
-      for (int i = 0; i < 5; i++) {
-        Serial.print(Payload[i], HEX);
-        Serial.print(" ");
-      }
-      Serial.println();
-    }
-  }
 }
