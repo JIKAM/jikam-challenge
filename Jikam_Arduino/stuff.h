@@ -6,7 +6,7 @@
 #define PEGAR_CARGA 5
 
 
-#define POTENCIA_ROTACAO  150
+#define POTENCIA_ROTACAO  100
 
 // definindo sentidos do motor
 #define SENTIDO_HORARIO "SENTIDO_HORARIO"

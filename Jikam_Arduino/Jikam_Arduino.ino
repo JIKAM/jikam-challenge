@@ -5,6 +5,8 @@ String inputMQTT = "";
 String outputMQTT = "";
 
 int instrucoes[100];
+int contadorActions = 0;
+int contadorLeitura = 0;
 
 Motores rodasEsquerdas = {8,7, 6};
 Motores rodasDireitas = {10,9, 5};
@@ -33,6 +35,12 @@ void setup() {
 
   pinMode(elevadores.sentidoHorario, OUTPUT);
   pinMode(elevadores.sentidoAntiHorario, OUTPUT);
+
+  //inicio teste
+    
+
+
+  //fim teste
   
   // initialize serial for debugging
   Serial.begin(9600);
@@ -56,44 +64,52 @@ void loop() {
 }
 
 void readData() {
-  int i = 0;
+  contadorLeitura = 0;
 
   if (Serial1.available()) {
     String temp = "";
     while (Serial1.available()) {
       char c = (char)Serial1.read();
       if (c != '\n' && c != ',' && c != ' ' && String(c) != "") {
-          instrucoes[i] = String(c).toInt();
-          i++;
+          instrucoes[contadorLeitura] = String(c).toInt();
+          Serial.println(c);
+          contadorLeitura++;
       }
-      Serial.println(c);
       delay(10);
     }
   }
 }
-
 void executeActions() {
-  int i=0;
-  while(i < (sizeof(instrucoes) / sizeof(int)) ){
-    if(instrucoes[i] != 0){
-      Serial.println("InputMQTT Action - Sentido: " + String(instrucoes[i]));
-      realizarTask(instrucoes[i]);
+  contadorActions = 0;
+  while(contadorActions < (sizeof(instrucoes) / sizeof(int)) ){
+    if(instrucoes[contadorActions] != 0){
+      Serial.println("InputMQTT Action - Sentido: " + String(instrucoes[contadorActions]));
+      realizarTask(instrucoes[contadorActions]);
+      Serial1.print(instrucoes[contadorActions]);
+      instrucoes[contadorActions] = 0;
       alinhar();
+    }else{
+      desligaMotores(rodasDireitas);
+      desligaMotores(rodasEsquerdas);
     }
-    i++;
+    contadorActions++;
   }
 }
 
 void alinhar(){
     while( ! isLinhaSensor(sensoresFrente.meio) ){
       if( isLinhaSensor(sensoresFrente.meioEsquerda) ){
-          girar(rodasDireitas, SENTIDO_ANTI_HORARIO);
+        while( ! isLinhaSensor(sensoresFrente.meio) ){
+          desligaMotores(rodasDireitas);
           girar(rodasEsquerdas, SENTIDO_HORARIO);
-          delay(100);
+          delay(5);
+         }
       }else if ( isLinhaSensor(sensoresFrente.meioDireita)){
+        while( ! isLinhaSensor(sensoresFrente.meio) ){
           girar(rodasDireitas, SENTIDO_HORARIO);
-          girar(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
-          delay(100);
+          desligaMotores(rodasEsquerdas);
+          delay(5);
+        }
       }
     }
 }
@@ -101,59 +117,85 @@ void alinhar(){
 void paraFrente(){
   Serial.println("Frente START"); 
   do {
-    alinhar();
+    //alinhar();
     girar(rodasDireitas, SENTIDO_HORARIO); 
     girar(rodasEsquerdas, SENTIDO_HORARIO);
-    delay(100);
-    } while( isLinhaSensor(sensoresFrente.meio) && ! isLinhaSensor(sensoresFrente.esquerda) && ! isLinhaSensor(sensoresFrente.direita) );
+    delay(2);
+    } while( ! isLinhaSensor(sensoresFrente.esquerda) && ! isLinhaSensor(sensoresFrente.direita) );
    Serial.println("Frente END");
 }
 
 void paraTras(){
-  Serial.print("Tras START"); 
+  Serial.println("Tras START"); 
   girar(rodasDireitas, SENTIDO_HORARIO);
   girar(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
   delay(10);
-  Serial.print("Tras END"); 
+  Serial.println("Tras END"); 
 }
 
 void paraDireita(){
-  Serial.print("Direita START");
-  girar(rodasDireitas, SENTIDO_HORARIO);
-  girar(rodasEsquerdas, SENTIDO_HORARIO);
-  delay(100);
-  girar(rodasDireitas, SENTIDO_ANTI_HORARIO); 
-  girar(rodasEsquerdas, SENTIDO_HORARIO);
-  delay(100);
+  Serial.println("Direita START");
 
-  while( ! digitalRead(sensoresFrente.meio) ){
-    girar(rodasDireitas, SENTIDO_ANTI_HORARIO); 
+  while( isLinhaSensor(sensoresFrente.direita) ){
+    girar(rodasDireitas, SENTIDO_HORARIO);
     girar(rodasEsquerdas, SENTIDO_HORARIO);
-    delay(10);
+    delay(1);  
   }
-  Serial.print("Direita END");
+
+  while( isLinhaSensor(sensoresFrente.meio) ){
+    girarForte(rodasDireitas, SENTIDO_ANTI_HORARIO); 
+    girarForte(rodasEsquerdas, SENTIDO_HORARIO);
+    delay(1);  
+  }
+  
+  while( ! isLinhaSensor(sensoresFrente.meio) ){
+    girarForte(rodasDireitas, SENTIDO_ANTI_HORARIO); 
+    girarForte(rodasEsquerdas, SENTIDO_HORARIO);
+    delay(1);
+  }
+  
+  Serial.println("Direita END");
 }
 
 void paraEsquerda(){
-  Serial.print("Esquerda START");
-  girar(rodasDireitas,SENTIDO_ANTI_HORARIO);
-  girar(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
-  delay(100);
-  girar(rodasDireitas, SENTIDO_ANTI_HORARIO); 
-  girar(rodasEsquerdas, SENTIDO_HORARIO);
-  delay(100);
-
-  while( ! digitalRead(sensoresFrente.meio) ){
-    girar(rodasDireitas, SENTIDO_ANTI_HORARIO); 
+  Serial.println("Esquerda START");
+  
+  while( isLinhaSensor(sensoresFrente.esquerda) ){
+    girar(rodasDireitas, SENTIDO_HORARIO);
     girar(rodasEsquerdas, SENTIDO_HORARIO);
-    delay(10);
+    delay(1);  
   }
-  Serial.print("Esquerda END");
+
+  while( isLinhaSensor(sensoresFrente.meio) ){
+    girarForte(rodasDireitas, SENTIDO_HORARIO); 
+    girarForte(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
+    delay(1);  
+  }
+
+  while( ! isLinhaSensor(sensoresFrente.meio) ){
+    girarForte(rodasDireitas, SENTIDO_HORARIO); 
+    girarForte(rodasEsquerdas, SENTIDO_ANTI_HORARIO);
+    delay(1);
+  }
+  Serial.println("Esquerda END");
  
 }
+bool elevado = false;
+void elevaDeseleva(){
+  Serial.println("elevaDeseleva START");
+  if(elevado){
+    girar(elevadores, SENTIDO_HORARIO);
+    delay(800);
+  }else{
+    girar(elevadores, SENTIDO_ANTI_HORARIO);
+    delay(800);
+  }
+  Serial.println("elevaDeseleva END");
+}
+
 
 void realizarTask(int task){
-  Serial.print("realizarTask START");
+  Serial.println("realizarTask START");
   
   if(task == EM_FRENTE){ 
     //F-(Forward)=(direito=horario && esquerdo=anti-horario) 
@@ -174,12 +216,12 @@ void realizarTask(int task){
     paraDireita();
     
   }else if(task == PEGAR_CARGA){ 
-      
+     elevaDeseleva();
     
   }
 
   
-   Serial.print("realizarTask END");
+   Serial.println("realizarTask END");
   
 }
 
@@ -192,6 +234,19 @@ bool isLinhaSensor(int pinoSensor){
 void girar(struct Motores motores, String sentido){
   if(motores.potencia != 0)
     analogWrite(motores.potencia, POTENCIA_ROTACAO);
+  //verifica para qual sentido é ara girar o motor
+  if(sentido == SENTIDO_HORARIO){ 
+    digitalWrite(motores.sentidoHorario, HIGH);
+    digitalWrite(motores.sentidoAntiHorario, LOW);
+  }else{
+    digitalWrite(motores.sentidoHorario, LOW);
+    digitalWrite(motores.sentidoAntiHorario, HIGH);
+  }
+}
+
+void girarForte(struct Motores motores, String sentido){
+  if(motores.potencia != 0)
+    analogWrite(motores.potencia, 150);
   //verifica para qual sentido é ara girar o motor
   if(sentido == SENTIDO_HORARIO){ 
     digitalWrite(motores.sentidoHorario, HIGH);
